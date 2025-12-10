@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mathematical Baymax - RAG Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        .input-section {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .answer-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .answer-section.visible {
+            display: block;
+        }
+
+        .answer-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .answer-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .answer-text {
+            color: #333;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .sources {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .sources h4 {
+            color: #856404;
+            margin-bottom: 8px;
+        }
+
+        .source-item {
+            color: #856404;
+            padding: 5px 0;
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            margin-top: 20px;
+            font-style: italic;
+        }
+
+        .error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            border-radius: 10px;
+            color: #721c24;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Mathematical Baymax</h1>
+        <p class="subtitle">Your AI assistant for mathematics and learning</p>
+
+        <div class="input-section">
+            <label for="question">Ask a question about your documents:</label>
+            <textarea 
+                id="question" 
+                placeholder="e.g., What is the Pythagorean theorem? How do I solve quadratic equations?"
+                rows="4"
+            ></textarea>
+        </div>
+
+        <button id="askBtn" onclick="askQuestion()">Ask Baymax</button>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Baymax is thinking...</p>
+        </div>
+
+        <div id="answerSection" class="answer-section">
+            <div class="answer-box">
+                <h3>📝 Answer</h3>
+                <div id="answer" class="answer-text"></div>
+            </div>
+            
+            <div id="sourcesDiv" class="sources" style="display: none;">
+                <h4>📚 Sources</h4>
+                <div id="sources"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function askQuestion() {
+            const questionInput = document.getElementById('question');
+            const question = questionInput.value.trim();
+            
+            if (!question) {
+                alert('Please enter a question!');
+                return;
+            }
+
+            // Show loading state
+            const askBtn = document.getElementById('askBtn');
+            const loading = document.getElementById('loading');
+            const answerSection = document.getElementById('answerSection');
+            
+            askBtn.disabled = true;
+            loading.style.display = 'block';
+            answerSection.classList.remove('visible');
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question: question })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'An error occurred');
+                }
+
+                // Display answer
+                document.getElementById('answer').textContent = data.answer;
+                
+                // Display sources if any
+                const sourcesDiv = document.getElementById('sourcesDiv');
+                const sourcesContainer = document.getElementById('sources');
+                
+                if (data.sources && data.sources.length > 0) {
+                    sourcesContainer.innerHTML = data.sources
+                        .map(source => `<div class="source-item">• ${source}</div>`)
+                        .join('');
+                    sourcesDiv.style.display = 'block';
+                } else {
+                    sourcesDiv.style.display = 'none';
+                }
+
+                answerSection.classList.add('visible');
+
+            } catch (error) {
+                // Display error
+                document.getElementById('answer').innerHTML = 
+                    `<div class="error"><strong>Error:</strong> ${error.message}</div>`;
+                answerSection.classList.add('visible');
+            } finally {
+                // Hide loading state
+                askBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        // Allow Enter key to submit (with Shift+Enter for new line)
+        document.getElementById('question').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                askQuestion();
+            }
+        });
+    </script>
+</body>
+</html>
