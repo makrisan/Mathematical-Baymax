@@ -2,6 +2,7 @@
 FastAPI Backend for RAG System
 Provides /chat endpoint for question answering using ChromaDB and Ollama
 """
+from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -59,7 +60,7 @@ def get_collection():
         chroma_client = chromadb.PersistentClient(path=DB_DIR)
         try:
             collection = chroma_client.get_collection(name=COLLECTION_NAME)
-        except:
+        except Exception:
             raise HTTPException(
                 status_code=500,
                 detail=f"Collection '{COLLECTION_NAME}' not found. Please run ingest.py first."
@@ -73,7 +74,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
-    sources: list[str]
+    sources: List[str]
 
 
 @app.get("/")
